@@ -6370,8 +6370,11 @@ dependencies = [
 name = "xtask"
 version = "1.6.0"
 dependencies = [
+ "anyhow",
  "cargo_metadata",
  "clap",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]
