@@ -371,8 +371,14 @@ where
                 // compute the chunk size from the number of available threads and the inputed data size.
                 let total_size = flattened_documents.metadata().map(|m| m.len());
                 let current_num_threads = pool.current_num_threads();
+                // if we have more than 2 thread, create a number of chuk equal to 2/3 threads count
+                let chunk_count = if current_num_threads > 2 {
+                    (current_num_threads * 2 / 3).max(2)
+                } else {
+                    current_num_threads
+                };
                 total_size
-                    .map_or(default_chunk_size, |size| (size as usize) / current_num_threads)
+                    .map_or(default_chunk_size, |size| (size as usize) / chunk_count)
                     .max(min_chunk_size)
             }
         };
