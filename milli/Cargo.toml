@@ -110,6 +110,7 @@ all-tokenizations = [
     "charabia/korean",
     "charabia/greek",
     "charabia/khmer",
+    "charabia/vietnamese",
 ]
 
 # Use POSIX semaphores instead of SysV semaphores in LMDB
@@ -137,6 +138,8 @@ greek = ["charabia/greek"]
 
 # allow khmer specialized tokenization
 khmer = ["charabia/khmer"]
+
+vietnamese = ["charabia/vietnamese"]
 
 # allow CUDA support, see <https://github.com/meilisearch/meilisearch/issues/4306>
 cuda = ["candle-core/cuda"]
