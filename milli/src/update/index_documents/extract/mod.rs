@@ -90,22 +90,12 @@ pub(crate) fn data_from_obkv_documents(
                         max_positions_per_attributes,
                     )
                 })
-                .inspect(|result| {
-                    if proximity_precision == ProximityPrecision::ByWord {
-                        if let Ok((docid_word_positions_chunk, _)) = result {
-                            run_extraction_task::<_, _, grenad::Reader<BufReader<File>>>(
-                                docid_word_positions_chunk.clone(),
-                                indexer,
-                                lmdb_writer_sx.clone(),
-                                extract_word_pair_proximity_docids,
-                                TypedChunk::WordPairProximityDocids,
-                                "word-pair-proximity-docids",
-                            );
-                        }
-                    }
-                })
-                .inspect(|result| {
-                    if let Ok((docid_word_positions_chunk, _)) = result {
+                .map(|result| {
+                    if let Ok((
+                        ref docid_word_positions_chunk,
+                        (ref fid_docid_facet_numbers_chunk, ref fid_docid_facet_strings_chunk),
+                    )) = result
+                    {
                         run_extraction_task::<_, _, grenad::Reader<BufReader<File>>>(
                             docid_word_positions_chunk.clone(),
                             indexer,
@@ -114,10 +104,7 @@ pub(crate) fn data_from_obkv_documents(
                             TypedChunk::FieldIdWordCountDocids,
                             "field-id-wordcount-docids",
                         );
-                    }
-                })
-                .inspect(|result| {
-                    if let Ok((docid_word_positions_chunk, _)) = result {
+
                         let exact_attributes = exact_attributes.clone();
                         run_extraction_task::<
                             _,
@@ -147,10 +134,7 @@ pub(crate) fn data_from_obkv_documents(
                             },
                             "word-docids",
                         );
-                    }
-                })
-                .inspect(|result| {
-                    if let Ok((docid_word_positions_chunk, _)) = result {
+
                         run_extraction_task::<_, _, grenad::Reader<BufReader<File>>>(
                             docid_word_positions_chunk.clone(),
                             indexer,
@@ -159,10 +143,7 @@ pub(crate) fn data_from_obkv_documents(
                             TypedChunk::WordPositionDocids,
                             "word-position-docids",
                         );
-                    }
-                })
-                .inspect(|result| {
-                    if let Ok((_, (_, fid_docid_facet_strings_chunk))) = result {
+
                         run_extraction_task::<_, _, grenad::Reader<BufReader<File>>>(
                             fid_docid_facet_strings_chunk.clone(),
                             indexer,
@@ -171,10 +152,7 @@ pub(crate) fn data_from_obkv_documents(
                             TypedChunk::FieldIdFacetStringDocids,
                             "field-id-facet-string-docids",
                         );
-                    }
-                })
-                .inspect(|result| {
-                    if let Ok((_, (fid_docid_facet_numbers_chunk, _))) = result {
+
                         run_extraction_task::<_, _, grenad::Reader<BufReader<File>>>(
                             fid_docid_facet_numbers_chunk.clone(),
                             indexer,
@@ -183,9 +161,21 @@ pub(crate) fn data_from_obkv_documents(
                             TypedChunk::FieldIdFacetNumberDocids,
                             "field-id-facet-number-docids",
                         );
+
+                        if proximity_precision == ProximityPrecision::ByWord {
+                            run_extraction_task::<_, _, grenad::Reader<BufReader<File>>>(
+                                docid_word_positions_chunk.clone(),
+                                indexer,
+                                lmdb_writer_sx.clone(),
+                                extract_word_pair_proximity_docids,
+                                TypedChunk::WordPairProximityDocids,
+                                "word-pair-proximity-docids",
+                            );
+                        }
                     }
+
+                    Ok(())
                 })
-                .map(|r| r.map(|_| ()))
                 .collect::<Result<()>>()
         },
     );
@@ -212,15 +202,17 @@ fn run_extraction_task<FE, FS, M>(
     FS: Fn(M) -> TypedChunk + Sync + Send + 'static,
     M: Send,
 {
-    puffin::profile_scope!("extract_chunk", name);
-    match extract_fn(chunk, indexer) {
-        Ok(chunk) => {
-            let _ = lmdb_writer_sx.send(Ok(serialize_fn(chunk)));
+    rayon::spawn(move || {
+        puffin::profile_scope!("extract_chunk", name);
+        match extract_fn(chunk, indexer) {
+            Ok(chunk) => {
+                let _ = lmdb_writer_sx.send(Ok(serialize_fn(chunk)));
+            }
+            Err(e) => {
+                let _ = lmdb_writer_sx.send(Err(e));
+            }
         }
-        Err(e) => {
-            let _ = lmdb_writer_sx.send(Err(e));
-        }
-    }
+    })
 }
 
 /// Extract chunked data and send it into lmdb_writer_sx sender:
