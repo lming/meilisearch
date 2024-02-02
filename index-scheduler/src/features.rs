@@ -17,7 +17,7 @@ pub(crate) struct FeatureData {
 
 #[derive(Debug, Clone, Copy)]
 pub struct RoFeatures {
-    runtime: RuntimeTogglableFeatures,
+    pub runtime: RuntimeTogglableFeatures,
 }
 
 impl RoFeatures {
